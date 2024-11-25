@@ -1,58 +1,32 @@
 const express = require('express');
-const { Sequelize, DataTypes } = require('sequelize');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
+
+const Libro = require('./models/libro');
+const Genero = require('./models/genero');
+
+
 const app = express();
 const port = 1507;
+
 
 app.use(bodyParser.json());
 app.use(cors());
 
 
-const sequelize = new Sequelize('libreria', 'root', 'S3Na2024*', {
-  host: 'localhost',
-  dialect: 'mysql',
-});
-
-const Libro = sequelize.define('Libro', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true,
-  },
-  titulo: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  autor: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  anio_publicacion: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-  },
-  id_genero: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-  },
-}, {
-  tableName: 'libros',
-  timestamps: false,  
-});
-
-
-sequelize.authenticate()
-  .then(() => console.log('Conexión a la base de datos exitosa'))
-  .catch((err) => console.error('No se pudo conectar a la base de datos:', err));
-
-
 app.get('/libreria', async (req, res) => {
   try {
-    const libros = await Libro.findAll();
+    const libros = await Libro.findAll({
+      include: [{
+        model: Genero,
+        as: 'Genero',
+        attributes: ['nombre']
+      }]
+    });
     res.json(libros);
   } catch (error) {
+    console.error('Error al obtener los libros:', error);
     res.status(500).send('Error al obtener los libros');
   }
 });
@@ -60,12 +34,19 @@ app.get('/libreria', async (req, res) => {
 
 app.get('/libreria/:id', async (req, res) => {
   const { id } = req.params;
-  
+
   try {
-    const libro = await Libro.findByPk(id);
+    const libro = await Libro.findByPk(id, {
+      include: {
+        model: Genero,
+        attributes: ['nombre']
+      }
+    });
+
     if (!libro) {
       return res.status(404).send('Libro no encontrado');
     }
+
     res.json(libro);
   } catch (error) {
     res.status(500).send('Error al obtener el libro');
@@ -74,7 +55,7 @@ app.get('/libreria/:id', async (req, res) => {
 
 app.post('/libreria', async (req, res) => {
   const { titulo, autor, anio_publicacion, id_genero } = req.body;
-  
+
   if (!titulo || !autor || !anio_publicacion || !id_genero) {
     return res.status(400).json({ message: 'Faltan datos necesarios' });
   }
@@ -86,15 +67,15 @@ app.post('/libreria', async (req, res) => {
       anio_publicacion,
       id_genero,
     });
+
     res.status(201).json({
       message: 'Libro creado',
-      libroId: nuevoLibro.id,
+      libroId: nuevoLibro.id 
     });
   } catch (error) {
     res.status(500).json({ message: 'Error al crear el libro' });
   }
 });
-
 
 app.patch('/libreria/:id', async (req, res) => {
   const { id } = req.params;
@@ -106,7 +87,6 @@ app.patch('/libreria/:id', async (req, res) => {
       return res.status(404).json({ message: 'Libro no encontrado' });
     }
 
-    // Actualizar solo los campos proporcionados
     if (titulo) libro.titulo = titulo;
     if (autor) libro.autor = autor;
     if (anio_publicacion) libro.anio_publicacion = anio_publicacion;
@@ -118,7 +98,6 @@ app.patch('/libreria/:id', async (req, res) => {
     res.status(500).json({ message: 'Error al actualizar el libro' });
   }
 });
-
 
 app.put('/libreria/:id', async (req, res) => {
   const { id } = req.params;
@@ -136,8 +115,9 @@ app.put('/libreria/:id', async (req, res) => {
     libro.id_genero = id_genero;
 
     await libro.save();
-    res.send('Libro actualizado');
+    res.send({ message: 'Libro actualizado correctamente' });
   } catch (error) {
+    console.error('Error al actualizar el libro:', error);
     res.status(500).send('Error al actualizar el libro');
   }
 });
